@@ -1,0 +1,109 @@
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f7f3f9;
+}
+
+.radar-container {
+    position: relative;
+    width: 400px;
+    height: 200px;
+    border-bottom-left-radius: 400px;
+    border-bottom-right-radius: 400px;
+    border: 2px solid #d3c4e3;
+    overflow: hidden;
+    background-color: #ffffff;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+    transform: rotate(180deg);
+    transform-origin: center bottom;
+}
+
+.radar-inner-content {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    transform: rotate(-180deg);
+    transform-origin: center center;
+}
+
+.radar-base {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    height: 200%;
+    border-radius: 50%;
+    background-color: transparent;
+    border: 1px dashed #e6e0f1;
+}
+
+.range-line {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    transform: translate(-50%, 50%);
+    border-radius: 50%;
+    border: 1px dashed #e6e0f1;
+}
+
+#radar-arm {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform-origin: 0 100%;
+    width: 2px;
+    height: 200px;
+    background: linear-gradient(to top, rgba(162, 126, 212, 0.8), rgba(255, 255, 255, 0));
+    z-index: 10;
+    transform: translateX(-1px) rotate(90deg);
+}
+
+@keyframes scan-animation {
+    0% { transform: translateX(-1px) rotate(90deg); }
+    50% { transform: translateX(-1px) rotate(-90deg); }
+    100% { transform: translateX(-1px) rotate(90deg); }
+}
+
+#radar-arm.scanning {
+    animation: scan-animation 3s linear infinite;
+}
+
+.object-point {
+    position: absolute;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    border: 3px solid;
+    box-shadow: 0 0 10px;
+    z-index: 20;
+    transition: all 0.5s ease-out;
+    transform: rotate(-180deg);
+}
+
+@keyframes pulse {
+    0% { transform: scale(1) rotate(-180deg); opacity: 1; }
+    50% { transform: scale(1.2) rotate(-180deg); opacity: 0.8; }
+    100% { transform: scale(1) rotate(-180deg); opacity: 1; }
+}
+
+.object-point.detected {
+    animation: pulse 1.5s infinite;
+}
+
+.angle-marker {
+    position: absolute;
+    color: #a27ed4;
+    font-size: 10px;
+    font-weight: 600;
+    transform: rotate(-180deg);
+}
+
+.angle-0   { bottom: -20px; left: 0px; }
+.angle-30  { bottom: 100px; left: -10px; }
+.angle-60  { bottom: 190px; left: 40px; }
+.angle-90  { bottom: 210px; left: 190px; }
+.angle-120 { bottom: 190px; right: 40px; }
+.angle-150 { bottom: 100px; right: -10px; }
+.angle-180 { bottom: -20px; right: 0px; }
