@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Datos WebSocket - Radar</title>
+</head>
+<body>
+    <pre id="jsonDisplay">Esperando datos...</pre>
+
+    <!-- SockJS y STOMP para WebSocket -->
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+    
+    <script>
+        const jsonDisplay = document.getElementById('jsonDisplay');
+        let stompClient = null;
+
+        // Conexión WebSocket
+        function connect() {
+            const socket = new SockJS('/ws-radar');
+            stompClient = Stomp.over(socket);
+            
+            stompClient.connect({}, function(frame) {
+                // Suscribirse al topic de radar
+                stompClient.subscribe('/topic/radar', function(message) {
+                    const radarData = JSON.parse(message.body);
+                    jsonDisplay.textContent = JSON.stringify(radarData, null, 2);
+                });
+            }, function(error) {
+                jsonDisplay.textContent = 'Error de conexión: ' + error;
+                // Reintentar conexión después de 3 segundos
+                setTimeout(connect, 3000);
+            });
+        }
+
+        // Iniciar conexión
+        connect();
+    </script>
+</body>
+</html>
