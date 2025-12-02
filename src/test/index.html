@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radar Sensor App - Minimalista</title>
+    <!-- Incluye Tailwind CSS para un diseño moderno y rápido --><script src="https://cdn.tailwindcss.com"></script>
+    <!-- Fuente Inter para un look minimalista --><link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <style>
+        /* Configuración de la fuente global y colores base */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f3f9; /* Fondo muy claro (casi blanco con tinte pastel) */
+        }
+
+        /* Estilos específicos para la zona del radar */
+        .radar-container {
+            position: relative;
+            width: 400px;
+            height: 200px; /* La mitad de la anchura para el semicírculo */
+            border-bottom-left-radius: 400px;
+            border-bottom-right-radius: 400px;
+            border: 2px solid #d3c4e3; /* Borde pastel suave */
+            overflow: hidden;
+            background-color: #ffffff;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05); /* Sombra suave */
+
+            /* Rotamos el contenedor para que el arco mire hacia arriba */
+            transform: rotate(180deg);
+            transform-origin: center bottom; /* El pivote es la mitad de la base */
+        }
+
+        /* Contenedor interno para revertir la rotación de los marcadores y el brazo */
+        .radar-inner-content {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            /* Revertimos la rotación de los elementos internos */
+            transform: rotate(-180deg);
+            transform-origin: center center;
+        }
+
+        /* El elemento semicircular base del radar (el "suelo") */
+        .radar-base {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            height: 200%;
+            border-radius: 50%;
+            background-color: transparent;
+            /* Líneas de alcance/grilla */
+            border: 1px dashed #e6e0f1;
+        }
+
+        /* Líneas de alcance (circunferencias) */
+        .range-line {
+            position: absolute;
+            left: 50%;
+            bottom: 0;
+            transform: translate(-50%, 50%);
+            border-radius: 50%;
+            border: 1px dashed #e6e0f1; /* Pastel muy claro */
+        }
+
+        /* La aguja/brazo del radar (Scanner) */
+        #radar-arm {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform-origin: 0 100%; /* Punto de pivote: abajo en el centro */
+            width: 2px;
+            height: 200px;
+            background: linear-gradient(to top, rgba(162, 126, 212, 0.8), rgba(255, 255, 255, 0)); /* Degradado pastel */
+            z-index: 10;
+            /* El transform inicial es para que la animación comience desde 0° */
+            transform: translateX(-1px) rotate(90deg);
+        }
+
+        /* Animación para el escaneo constante del brazo del radar */
+        @keyframes scan-animation {
+            /* 90deg es 0° del radar */
+            0% { transform: translateX(-1px) rotate(90deg); }
+            /* -90deg es 180° del radar */
+            50% { transform: translateX(-1px) rotate(-90deg); }
+            /* Vuelve a 0 grados del radar */
+            100% { transform: translateX(-1px) rotate(90deg); }
+        }
+
+        #radar-arm.scanning {
+            animation: scan-animation 3s linear infinite; /* 3 segundos por ciclo */
+        }
+
+        /* El punto del objeto detectado */
+        .object-point {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            /* Los colores se aplicarán dinámicamente con JS */
+            border: 3px solid;
+            box-shadow: 0 0 10px;
+            z-index: 20;
+            transition: all 0.5s ease-out;
+            /* Para que los puntos no estén invertidos con el contenedor */
+            transform: rotate(-180deg);
+        }
+
+        /* Animación de pulso para el objeto detectado */
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .object-point.detected {
+            animation: pulse 1.5s infinite;
+        }
+
+        /* Estilo para los marcadores de ángulo (texto) */
+        .angle-marker {
+            position: absolute;
+            color: #a27ed4; /* Morado pastel suave */
+            font-size: 10px;
+            font-weight: 600;
+            /* Revertimos la rotación para que el texto se lea correctamente */
+            transform: rotate(-180deg);
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+
+<!-- Cuadro de Mensaje Personalizado (Reemplaza a alert()) --><div id="message-box" class="hidden fixed top-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-xl z-50 transition-opacity duration-300" role="alert">
+    <strong class="font-bold">Error de Simulación:</strong>
+    <span id="message-content" class="block sm:inline ml-2"></span>
+    <span class="absolute top-0 bottom-0 right-0 px-4 py-3 cursor-pointer" onclick="document.getElementById('message-box').classList.add('hidden')">
+            <svg class="fill-current h-6 w-6 text-red-500" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Cerrar</title><path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.697l-2.651 3.152a1.2 1.2 0 1 1-1.697-1.697l3.152-2.651-3.152-2.651a1.2 1.2 0 0 1 1.697-1.697l2.651 3.152 2.651-3.152a1.2 1.2 0 0 1 1.697 1.697L11.697 10l3.152 2.651a1.2 1.2 0 0 1 0 1.698z"/></svg>
+        </span>
+</div>
+
+<!-- Tarjeta Principal de la Aplicación --><div class="bg-white rounded-xl shadow-2xl p-8 w-full max-w-4xl transition duration-300 hover:shadow-xl">
+
+    <h1 class="text-3xl font-extrabold text-gray-800 mb-2">Sensor Radar Detector</h1>
+    <p class="text-gray-500 mb-6">Visualización de múltiples objetos detectados (0° - 180°).</p>
+
+    <div class="flex flex-col md:flex-row items-start md:space-x-8">
+
+        <!-- Columna del Radar --><div class="flex-shrink-0 mb-8 md:mb-0">
+        <div class="radar-container mx-auto">
+
+            <!-- Contenedor interno para revertir la rotación de los elementos -->
+            <div class="radar-inner-content">
+                <!-- Base circular para dibujar la cuadrícula de alcance (Range Lines) --><div class="radar-base"></div>
+
+                <!-- Líneas de Alcance (Grilla Estática) --><div class="range-line" style="width: 100px; height: 100px; transform: translate(-50%, 50%); bottom: 0;"></div>
+                <div class="range-line" style="width: 200px; height: 200px; transform: translate(-50%, 50%); bottom: 0;"></div>
+                <div class="range-line" style="width: 300px; height: 300px; transform: translate(-50%, 50%); bottom: 0;"></div>
+                <div class="range-line" style="width: 400px; height: 400px; transform: translate(-50%, 50%); bottom: 0;"></div>
+
+                <!-- Marcadores de Angulo --><div class="angle-marker" style="bottom: -20px; left: 0px;">0°</div>
+                <div class="angle-marker" style="bottom: 100px; left: -10px;">30°</div>
+                <div class="angle-marker" style="bottom: 190px; left: 40px;">60°</div>
+                <div class="angle-marker" style="bottom: 210px; left: 190px;">90°</div>
+                <div class="angle-marker" style="bottom: 190px; right: 40px;">120°</div>
+                <div class="angle-marker" style="bottom: 100px; right: -10px;">150°</div>
+                <div class="angle-marker" style="bottom: -20px; right: 0px;">180°</div>
+
+                <!-- La aguja o brazo del radar --><div id="radar-arm" class="scanning"></div> <!-- Clase 'scanning' para la animación --><!-- Contenedor para múltiples puntos de objeto --><div id="object-points-container"></div>
+            </div>
+
+        </div>
+    </div>
+
+        <!-- Columna de Datos y Controles --><div class="w-full">
+        <h2 class="text-xl font-semibold text-gray-700 mb-4 border-b pb-2 border-gray-100">Información de la Detección (Más Cercano)</h2>
+
+        <div class="space-y-4 mb-6 p-4 bg-gray-50 rounded-lg">
+            <!-- Display de Ángulo --><div class="flex justify-between items-center p-3 bg-purple-50 rounded-md">
+            <span class="text-sm font-medium text-gray-600">Ángulo Detectado (°)</span>
+            <span id="display-angle" class="text-2xl font-bold text-purple-700">--</span>
+        </div>
+
+            <!-- Display de Distancia --><div class="flex justify-between items-center p-3 bg-red-50 rounded-md">
+            <span class="text-sm font-medium text-gray-600">Distancia (cm)</span>
+            <span id="display-distance" class="text-2xl font-bold text-red-700">--</span>
+        </div>
+
+            <!-- Estado del Sensor --><div class="flex justify-between items-center p-3 bg-green-50 rounded-md">
+            <span class="text-sm font-medium text-gray-600">Estado</span>
+            <span id="display-status" class="text-sm font-bold text-green-700">Esperando datos...</span>
+        </div>
+        </div>
+
+        <h2 class="text-xl font-semibold text-gray-700 mb-4 border-b pb-2 border-gray-100">Simulación de Escaneo (JSON)</h2>
+
+        <!-- Control de Simulación (Para pruebas del frontend) --><div class="p-4 border border-gray-100 rounded-lg bg-white shadow-sm">
+        <p class="text-sm text-gray-500 mb-3">Introduce la lista de objetos en formato JSON:</p>
+        <textarea id="input-json" placeholder='Ej: [{"angle": 30, "distance": 150}, {"angle": 120, "distance": 50}]' class="w-full h-24 p-2 border border-gray-300 rounded-lg focus:ring-purple-300 focus:border-purple-300 mb-4"></textarea>
+
+        <button id="simulate-button" class="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg transition duration-200 shadow-md hover:shadow-lg">
+            Simular Escaneo Multi-Objeto
+        </button>
+        <button id="clear-button" class="w-full mt-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2 px-4 rounded-lg transition duration-200">
+            Limpiar Detecciones
+        </button>
+    </div>
+
+        <p class="mt-4 text-xs text-gray-400">Nota: La conexión en tiempo real con el backend debe implementarse vía WebSocket.</p>
+    </div>
+
+    </div>
+</div>
+
+<!-- Script JavaScript para la Lógica del Radar --><script>
+    // Variables globales y configuración
+    const radarArm = document.getElementById('radar-arm');
+    const objectPointsContainer = document.getElementById('object-points-container');
+    const displayAngle = document.getElementById('display-angle');
+    const displayDistance = document.getElementById('display-distance');
+    const displayStatus = document.getElementById('display-status');
+    const messageBox = document.getElementById('message-box');
+    const messageContent = document.getElementById('message-content');
+    const inputJson = document.getElementById('input-json');
+
+    // Constantes del radar
+    const MAX_RADAR_WIDTH = 400; // Ancho del contenedor del radar en píxeles
+    const MAX_RANGE_CM = 200; // Máximo rango que el radar puede mostrar (ej. 200cm)
+
+    // ===============================================
+    // CONSTANTES DE COLOR Y RANGO (Fácil de modificar)
+    // ===============================================
+
+    // Esquema de colores para la codificación por distancia (pastel)
+    const COLOR_SCHEME = {
+        NEAR: { background: '#ff7b7b', border: '#ff4d4d', shadow: '#ff4d4d' },  // Rojo Pastel (Cercano)
+        MEDIUM: { background: '#ffd17b', border: '#ffc34d', shadow: '#ffc34d' },    // Amarillo Pastel (Medio)
+        FAR: { background: '#ffa07b', border: '#ff8a4d', shadow: '#ff8a4d' }    // Naranja Pastel (Lejano)
+    };
+
+    // Rangos de distancia en CM. La clave es el límite superior para el rango.
+    // Ejemplo: 0-50cm = CERCANO, 51-120cm = MEDIO, 121cm+ = LEJANO
+    const DISTANCE_RANGES = {
+        50: 'CERCANO',
+        120: 'MEDIO',
+        [MAX_RANGE_CM]: 'LEJANO' // Usa el MAX_RANGE_CM como el límite superior del último rango
+    };
+
+    /**
+     * Determina el esquema de color para un objeto basado en su distancia.
+     * @param {number} distance Distancia del objeto en CM.
+     * @returns {object} Objeto con propiedades background, border, y shadow.
+     */
+    function getPointColor(distance) {
+        let rangeKey = 'LEJANO'; // Por defecto, es lejano o fuera de rango
+
+        // Iterar sobre los rangos definidos
+        for (const limit in DISTANCE_RANGES) {
+            if (distance <= parseInt(limit)) {
+                rangeKey = DISTANCE_RANGES[limit];
+                break;
+            }
+        }
+
+        // Si la distancia es mayor al rango máximo, sigue siendo LEJANO
+        return COLOR_SCHEME[rangeKey] || COLOR_SCHEME.LEJANO;
+    }
+
+    // ===============================================
+
+    // Función para mostrar error personalizado
+    function showMessage(message) {
+        messageContent.textContent = message;
+        messageBox.classList.remove('hidden');
+        messageBox.style.opacity = '1';
+
+        // Ocultar automáticamente después de 4 segundos
+        setTimeout(() => {
+            messageBox.style.opacity = '0';
+            setTimeout(() => messageBox.classList.add('hidden'), 300);
+        }, 4000);
+    }
+
+    // Función para mapear el ángulo del radar (0-180) a la rotación del CSS.
+    function mapAngleToCSS(radarAngle) {
+        if (radarAngle < 0) radarAngle = 0;
+        if (radarAngle > 180) radarAngle = 180;
+        return 90 - radarAngle;
+    }
+
+    // Función para calcular la posición X, Y de un punto en el radar
+    function calculatePointPosition(angle, distance) {
+        // Convertir la distancia de CM a una proporción del radio de la pantalla (0 a 200px)
+        let radiusPixels = (distance / MAX_RANGE_CM) * (MAX_RADAR_WIDTH / 2);
+
+        // Asegurarse de que el punto no salga del radar
+        if (radiusPixels > (MAX_RADAR_WIDTH / 2)) {
+            radiusPixels = MAX_RADAR_WIDTH / 2;
+        }
+
+        // Convertir el ángulo del radar (0-180) a radianes cartesianos.
+        const radians = (180 - angle) * (Math.PI / 180);
+
+        // Calcular coordenadas (x, y) relativas al centro del semicírculo
+        const x = radiusPixels * Math.cos(radians);
+        const y = radiusPixels * Math.sin(radians);
+
+        // Trasladar las coordenadas al sistema de coordenadas CSS del contenedor
+        const containerCenter = MAX_RADAR_WIDTH / 2;
+
+        const finalX = containerCenter + x;
+        const finalY = y;
+
+        return { x: finalX, y: finalY };
+    }
+
+
+    /**
+     * Función principal para actualizar la visualización del radar con múltiples detecciones.
+     * @param {Array<{angle: number, distance: number}>} detections - Lista de objetos detectados.
+     */
+    function updateRadar(detections) {
+        // El radar debe seguir escaneando
+
+        // 1. Limpiar todos los puntos anteriores
+        objectPointsContainer.innerHTML = '';
+
+        let closestObject = null;
+        let minDistance = Infinity;
+
+        // 2. Iterar sobre las detecciones, dibujar los puntos e identificar el más cercano
+        detections.forEach(detection => {
+            const { angle, distance } = detection;
+
+            // Validación de datos
+            if (typeof angle !== 'number' || typeof distance !== 'number' || angle < 0 || angle > 180 || distance < 0) {
+                console.warn(`Detección inválida ignorada. Datos: ${JSON.stringify(detection)}`);
+                return;
+            }
+
+            // Si la distancia es mayor al rango máximo, la dibujamos en el límite
+            const displayDistance = Math.min(distance, MAX_RANGE_CM);
+
+            // 3. Crear y posicionar el punto del objeto
+            const { x, y } = calculatePointPosition(angle, displayDistance);
+
+            // --- Lógica de Color Dinámico ---
+            const colors = getPointColor(distance);
+
+            const pointDiv = document.createElement('div');
+            pointDiv.className = 'object-point detected'; // Reutilizamos las clases CSS
+            pointDiv.style.left = `${x - 6}px`; // Ajuste para centrar el punto (12px de ancho)
+            pointDiv.style.bottom = `${y - 6}px`;
+
+            // Aplicar estilos de color
+            pointDiv.style.backgroundColor = colors.background;
+            pointDiv.style.borderColor = colors.border;
+            pointDiv.style.boxShadow = `0 0 10px ${colors.shadow}`;
+
+            pointDiv.title = `Angulo: ${angle.toFixed(1)}°, Distancia: ${distance.toFixed(1)} cm`;
+
+            objectPointsContainer.appendChild(pointDiv);
+
+            // 4. Identificar el objeto más cercano para mostrar en los displays
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestObject = detection;
+            }
+        });
+
+        // 5. Actualizar los displays
+        if (closestObject) {
+            const angle = closestObject.angle;
+            const distance = closestObject.distance;
+
+            displayAngle.textContent = angle.toFixed(1);
+            displayDistance.textContent = distance.toFixed(1);
+            displayStatus.textContent = `Detectados ${detections.length} objetos (Mostrando el más cercano)`;
+            displayStatus.classList.remove('text-green-700', 'bg-green-50');
+            displayStatus.classList.add('text-red-700', 'bg-red-50');
+        } else {
+            clearDetection(); // Si no hay objetos, volvemos al estado de escaneo
+        }
+    }
+
+    // Función para limpiar la detección
+    function clearDetection() {
+        // El radar debe estar siempre escaneando
+        radarArm.classList.add('scanning');
+
+        // Ocultar y limpiar todos los puntos
+        objectPointsContainer.innerHTML = '';
+
+        // Limpiar los displays
+        displayAngle.textContent = '--';
+        displayDistance.textContent = '--';
+        displayStatus.textContent = 'Esperando datos...';
+        displayStatus.classList.remove('text-red-700', 'bg-red-50');
+        displayStatus.classList.add('text-green-700', 'bg-green-50');
+    }
+
+    // --- Event Listeners para la Simulación ---
+
+    document.getElementById('simulate-button').addEventListener('click', () => {
+        try {
+            const jsonText = inputJson.value.trim();
+
+            // Si el input está vacío, limpiar y salir
+            if (!jsonText) {
+                clearDetection();
+                return;
+            }
+
+            const detections = JSON.parse(jsonText);
+
+            if (!Array.isArray(detections)) {
+                showMessage('Error de formato: El input debe ser un array JSON (Ej: [{}, {}]).');
+                return;
+            }
+
+            updateRadar(detections);
+
+        } catch (e) {
+            console.error("Error al parsear JSON:", e);
+            showMessage('Error al parsear el JSON de entrada. Asegúrate de que el formato sea un array de objetos válido.');
+        }
+    });
+
+    document.getElementById('clear-button').addEventListener('click', clearDetection);
+
+    // Inicializar el radar al cargar la página
+    window.onload = clearDetection;
+
+    // --- Conexión WebSocket (Conceptual) ---
+    // Adapta este bloque de código cuando implementes el WebSocket en tu backend.
+    // La idea es que `socket.onmessage` llame a `updateRadar(detecciones)`.
+
+    // function setupWebSocket() {
+    //     const socket = new WebSocket('ws://localhost:8080/ws/radar');
+
+    //     socket.onopen = () => {
+    //         console.log('Conexión WebSocket establecida.');
+    //         displayStatus.textContent = 'Conectado. Esperando Escaneo...';
+    //         radarArm.classList.add('scanning'); // Iniciar escaneo cuando se conecta y no hay datos
+    //     };
+
+    //     socket.onmessage = (event) => {
+    //         try {
+    //             const detections = JSON.parse(event.data);
+    //             if (Array.isArray(detecciones)) {
+    //                 updateRadar(detections); // Esto detendrá el escaneo y mostrará los puntos
+    //             } else {
+    //                 console.warn("Dato recibido no es un array:", detections);
+    //             }
+    //         } catch (e) {
+    //             console.error("Error al procesar el mensaje del WebSocket:", e);
+    //         }
+    //     };
+
+    //     socket.onclose = () => {
+    //         console.log('Conexión WebSocket cerrada. Reintentando en 5s...');
+    //         displayStatus.textContent = 'Desconectado. Reintentando...';
+    //         radarArm.classList.remove('scanning'); // Detener escaneo al desconectar
+    //         setTimeout(setupWebSocket, 5000);
+    //     };
+
+    //     socket.onerror = (error) => {
+    //         console.error('Error de WebSocket:', error);
+    //     };
+    // }
+
+    // window.onload = () => {
+    //     clearDetection(); // Asegura que el radar está limpio y escaneando
+    //     // Descomenta para iniciar la conexión WebSocket al cargar la página
+    //     // setupWebSocket();
+    // };
+
+</script>
+</body>
+</html>
