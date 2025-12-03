@@ -10,7 +10,7 @@ public class HomeController {
 
     @GetMapping
     public String home() {
-        return "redirect:/radar.html";
+        return "redirect:/home.html";
     }
     
     @GetMapping("/3d")
