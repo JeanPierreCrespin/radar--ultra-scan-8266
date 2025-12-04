@@ -25,7 +25,9 @@ let centerY = 0;
 let sweepIndicator;
 
 let stompClient = null;
-let currentTargetData = null;
+
+let targetHistory = [];
+const TARGET_LIFETIME = 3000; // 3 segundos
 
 let sweepAngle = 0;
 const SWEEP_SPEED = 2;
@@ -39,7 +41,6 @@ function drawSweep() {
     const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radarSize);
     grad.addColorStop(0, "rgba(0,255,0,0.25)");
     grad.addColorStop(1, "rgba(0,255,0,0)");
-
     ctx.fillStyle = grad;
 
     ctx.beginPath();
@@ -53,8 +54,6 @@ function drawSweep() {
     sweepAngle += SWEEP_SPEED;
     if (sweepAngle >= 360) sweepAngle = 0;
 }
-
-
 
 function resizeCanvas() {
     container = document.getElementById(CONTAINER_ID);
@@ -79,10 +78,6 @@ function resizeCanvas() {
     targetContainer.style.height = `${radarSize}px`;
 
     drawRadarGrid();
-
-    if (currentTargetData) {
-        updateTargetDot(currentTargetData.angle, currentTargetData.distance);
-    }
 }
 
 function drawRadarGrid() {
@@ -96,32 +91,18 @@ function drawRadarGrid() {
 
     ctx.beginPath();
     ctx.arc(0, 0, radarSize, Math.PI, 2 * Math.PI);
-    ctx.lineTo(-radarSize, 0);
     ctx.closePath();
     ctx.fillStyle = RADAR_FILL_COLOR;
     ctx.fill();
 
     ctx.strokeStyle = PRIMARY_COLOR;
     ctx.lineWidth = 2;
-    ctx.stroke();
-
-    ctx.strokeStyle = GRID_LINE_COLOR;
-    ctx.lineWidth = 1;
-    ctx.setLineDash([5, 5]);
 
     for (let i = 1; i <= NUM_RANGE_CIRCLES; i++) {
         const radius = (radarSize / NUM_RANGE_CIRCLES) * i;
         ctx.beginPath();
         ctx.arc(0, 0, radius, Math.PI, 2 * Math.PI);
         ctx.stroke();
-
-        if (i > 0) {
-            ctx.fillStyle = GRID_LINE_COLOR;
-            ctx.font = '12px Inter';
-            ctx.textAlign = 'center';
-            const distanceLabel = `${(MAX_DISTANCE / NUM_RANGE_CIRCLES) * i} cm`;
-            ctx.fillText(distanceLabel, 0, -radius + 15);
-        }
     }
 
     ctx.setLineDash([]);
@@ -150,66 +131,78 @@ function drawRadarGrid() {
 }
 
 function updateTargetDot(angle, distance) {
-    currentTargetData = { angle, distance };
+    const now = Date.now();
+
+    targetHistory.push({ angle, distance, timestamp: now });
+
+    // Quitar puntos viejos
+    targetHistory = targetHistory.filter(p => now - p.timestamp < TARGET_LIFETIME);
+
+    // Limpiar y redibujar todos los puntos actuales
     targetContainer.innerHTML = '';
 
-    if (distance > MAX_DISTANCE || distance < 0) return;
+    targetHistory.forEach(point => {
+        const pixelDistance = (point.distance / MAX_DISTANCE) * radarSize;
+        const radian = (point.angle - 180) * (Math.PI / 180);
 
-    const pixelDistance = (distance / MAX_DISTANCE) * radarSize;
-    const radian = (180 - angle) * (Math.PI / 180);
+        const x = centerX + pixelDistance * Math.cos(radian);
+        const y = centerY - pixelDistance * Math.sin(radian);
 
-    const x = centerX + pixelDistance * Math.cos(radian);
-    const y = centerY - pixelDistance * Math.sin(radian);
+        const dot = document.createElement('div');
 
-    const dot = document.createElement('div');
-    dot.className = 'target-dot';
+        // color según cercanía
+        let color = "rgba(0,255,0,0.9)";  // lejos
+        if (point.distance < 50) color = "rgba(0,255,0,1)";
+        if (point.distance < 20) color = "rgba(180,255,180,1)";
 
-    // 🔥 COLOR EN FUNCIÓN DE LA DISTANCIA
-    // Cerca → Rojo oscuro
-    // Medio → Amarillo
-    // Lejos → Verde claro
-    let intensityColor = "rgb(0,255,0)"; // por defecto verde
+        dot.style.backgroundColor = color;
+        dot.style.width = "10px";
+        dot.style.height = "10px";
+        dot.style.borderRadius = "50%";
+        dot.style.position = "absolute";
 
-    if (distance < 20) {
-        intensityColor = "rgb(255,0,0)"; // rojo intenso
-    } else if (distance < 50) {
-        intensityColor = "rgb(255,165,0)"; // naranja/amarillo
-    } else {
-        intensityColor = "rgb(0,255,0)"; // verde
-    }
+        dot.style.left = `${x}px`;
+        dot.style.top = `${y}px`;
 
-    dot.style.backgroundColor = intensityColor;
-    dot.style.width = "12px";
-    dot.style.height = "12px";
-    dot.style.borderRadius = "50%";
-    dot.style.position = "absolute";
-
-    dot.style.left = `${x}px`;
-    dot.style.top = `${y}px`;
-
-    targetContainer.appendChild(dot);
+        targetContainer.appendChild(dot);
+    });
 
     distanceValueEl.textContent = distance.toFixed(2);
     angleValueEl.textContent = angle.toFixed(1);
-
-    const now = new Date();
-    lastUpdateTimeEl.textContent = now.toLocaleTimeString('es-ES', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    });
+    lastUpdateTimeEl.textContent = new Date().toLocaleTimeString('es-ES');
 }
 
 function animate() {
     requestAnimationFrame(animate);
+    drawRadarGrid();
+    drawSweep();
+}
 
-    drawRadarGrid();  // siempre redibuja el radar
-    drawSweep();      // efecto barrido real
+function connect() {
+    connectionStatusEl.textContent = "Conectando...";
 
-    // si hay un punto real, lo volvemos a dibujar encima del radar
-    if (currentTargetData) {
-        updateTargetDot(currentTargetData.angle, currentTargetData.distance);
-    }
+    const socket = new SockJS('/ws-radar');
+    stompClient = Stomp.over(socket);
+    stompClient.debug = null;
+
+    stompClient.connect({}, function(frame) {
+
+        connectionStatusEl.textContent = "Conectado";
+
+        stompClient.subscribe('/topic/radar', function(message) {
+            const radarData = JSON.parse(message.body);
+
+            jsonDisplayEl.textContent = JSON.stringify(radarData, null, 2);
+
+            if (radarData.angle !== undefined && radarData.distance !== undefined) {
+                updateTargetDot(radarData.angle, radarData.distance);
+            }
+        });
+
+    }, function(error) {
+        connectionStatusEl.textContent = "Desconectado";
+        setTimeout(connect, 3000);
+    });
 }
 
 function initRadarApp() {
@@ -218,7 +211,6 @@ function initRadarApp() {
     sweepIndicator = document.getElementById(SWEEP_ID);
     targetContainer = document.getElementById(TARGET_CONTAINER_ID);
 
-
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
@@ -226,36 +218,5 @@ function initRadarApp() {
     animate();
 }
 
-function connect() {
-    connectionStatusEl.className = "flex items-center justify-center bg-yellow-400/80 text-primary-dark px-3 py-2 rounded-full text-sm font-medium";
-    connectionStatusEl.innerHTML = '<div class="h-2 w-2 rounded-full bg-yellow-100 mr-2 animate-pulse"></div> Conectando...';
-
-    const socket = new SockJS('/ws-radar');
-    stompClient = Stomp.over(socket);
-    stompClient.debug = null;
-
-    stompClient.connect({}, function(frame) {
-
-        connectionStatusEl.className = "flex items-center justify-center bg-green-400/80 text-primary-dark px-3 py-2 rounded-full text-sm font-medium";
-        connectionStatusEl.innerHTML = '<div class="h-2 w-2 rounded-full bg-green-100 mr-2 animate-pulse"></div> Conectado';
-
-        stompClient.subscribe('/topic/radar', function(message) {
-            const radarData = JSON.parse(message.body);
-
-            jsonDisplayEl.textContent = JSON.stringify(radarData, null, 2);
-
-            if (radarData.angle !== undefined && radarData.distance !== undefined) {
-                drawRadarGrid();
-                updateTargetDot(radarData.angle, radarData.distance);
-            }
-        });
-
-    }, function(error) {
-        connectionStatusEl.className = "flex items-center justify-center bg-red-500/80 text-text-light px-3 py-2 rounded-full text-sm font-medium";
-        connectionStatusEl.innerHTML = '<div class="h-2 w-2 rounded-full bg-red-100 mr-2"></div> Desconectado';
-
-        setTimeout(connect, 3000);
-    });
-}
-
 window.onload = initRadarApp;
+
