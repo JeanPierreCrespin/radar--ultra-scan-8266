@@ -27,6 +27,33 @@ let sweepIndicator;
 let stompClient = null;
 let currentTargetData = null;
 
+let sweepAngle = 0;
+const SWEEP_SPEED = 2;
+
+function drawSweep() {
+    ctx.save();
+    ctx.translate(centerX, centerY);
+
+    const rad = (180 - sweepAngle) * (Math.PI / 180);
+
+    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radarSize);
+    grad.addColorStop(0, "rgba(0,255,0,0.25)");
+    grad.addColorStop(1, "rgba(0,255,0,0)");
+
+    ctx.fillStyle = grad;
+
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, radarSize, rad - 0.03, rad + 0.03);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+
+    sweepAngle += SWEEP_SPEED;
+    if (sweepAngle >= 360) sweepAngle = 0;
+}
+
 
 
 function resizeCanvas() {
@@ -125,10 +152,10 @@ function drawRadarGrid() {
 function updateTargetDot(angle, distance) {
     currentTargetData = { angle, distance };
     targetContainer.innerHTML = '';
+
     if (distance > MAX_DISTANCE || distance < 0) return;
 
     const pixelDistance = (distance / MAX_DISTANCE) * radarSize;
-
     const radian = (180 - angle) * (Math.PI / 180);
 
     const x = centerX + pixelDistance * Math.cos(radian);
@@ -137,41 +164,52 @@ function updateTargetDot(angle, distance) {
     const dot = document.createElement('div');
     dot.className = 'target-dot';
 
+    // 🔥 COLOR EN FUNCIÓN DE LA DISTANCIA
+    // Cerca → Rojo oscuro
+    // Medio → Amarillo
+    // Lejos → Verde claro
+    let intensityColor = "rgb(0,255,0)"; // por defecto verde
+
+    if (distance < 20) {
+        intensityColor = "rgb(255,0,0)"; // rojo intenso
+    } else if (distance < 50) {
+        intensityColor = "rgb(255,165,0)"; // naranja/amarillo
+    } else {
+        intensityColor = "rgb(0,255,0)"; // verde
+    }
+
+    dot.style.backgroundColor = intensityColor;
+    dot.style.width = "12px";
+    dot.style.height = "12px";
+    dot.style.borderRadius = "50%";
+    dot.style.position = "absolute";
+
     dot.style.left = `${x}px`;
     dot.style.top = `${y}px`;
 
     targetContainer.appendChild(dot);
+
     distanceValueEl.textContent = distance.toFixed(2);
     angleValueEl.textContent = angle.toFixed(1);
 
     const now = new Date();
-    lastUpdateTimeEl.textContent = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-}
-
-function drawTarget(angle, distance) {
-    updateTargetDot(angle, distance);
-}
-
-function simulateApiData() {
-    const distance = parseFloat((Math.random() * MAX_DISTANCE).toFixed(2));
-    const angle = parseFloat((Math.random() * 180).toFixed(1));
-    const now = new Date();
-    const timeString = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-    distanceValueEl.textContent = distance.toFixed(2);
-    angleValueEl.textContent = angle.toFixed(1);
-    lastUpdateTimeEl.textContent = timeString;
-
-    drawRadarGrid();
-    drawTarget(angle, distance);
+    lastUpdateTimeEl.textContent = now.toLocaleTimeString('es-ES', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
 }
 
 function animate() {
-    if (Date.now() % 2000 < 50) {
-        simulateApiData();
-    }
-
     requestAnimationFrame(animate);
+
+    drawRadarGrid();  // siempre redibuja el radar
+    drawSweep();      // efecto barrido real
+
+    // si hay un punto real, lo volvemos a dibujar encima del radar
+    if (currentTargetData) {
+        updateTargetDot(currentTargetData.angle, currentTargetData.distance);
+    }
 }
 
 function initRadarApp() {
@@ -179,40 +217,44 @@ function initRadarApp() {
     ctx = canvas.getContext('2d');
     sweepIndicator = document.getElementById(SWEEP_ID);
     targetContainer = document.getElementById(TARGET_CONTAINER_ID);
+
+
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
     connect();
+    animate();
 }
 
 function connect() {
-    connectionStatusEl.className = "flex items-center justify-center bg-yellow-400/80 text-primary-dark px-3 py-2 rounded-full text-sm font-medium transition-all duration-300";
+    connectionStatusEl.className = "flex items-center justify-center bg-yellow-400/80 text-primary-dark px-3 py-2 rounded-full text-sm font-medium";
     connectionStatusEl.innerHTML = '<div class="h-2 w-2 rounded-full bg-yellow-100 mr-2 animate-pulse"></div> Conectando...';
 
-    const socketUrl = `/ws-radar`;
-
-    const socket = new SockJS(socketUrl);
+    const socket = new SockJS('/ws-radar');
     stompClient = Stomp.over(socket);
     stompClient.debug = null;
 
     stompClient.connect({}, function(frame) {
-        console.log('Conectado a WebSocket: ' + frame);
-        connectionStatusEl.className = "flex items-center justify-center bg-green-400/80 text-primary-dark px-3 py-2 rounded-full text-sm font-medium transition-all duration-300";
+
+        connectionStatusEl.className = "flex items-center justify-center bg-green-400/80 text-primary-dark px-3 py-2 rounded-full text-sm font-medium";
         connectionStatusEl.innerHTML = '<div class="h-2 w-2 rounded-full bg-green-100 mr-2 animate-pulse"></div> Conectado';
 
         stompClient.subscribe('/topic/radar', function(message) {
             const radarData = JSON.parse(message.body);
+
             jsonDisplayEl.textContent = JSON.stringify(radarData, null, 2);
 
             if (radarData.angle !== undefined && radarData.distance !== undefined) {
+                drawRadarGrid();
                 updateTargetDot(radarData.angle, radarData.distance);
             }
         });
+
     }, function(error) {
-        console.error('Error de conexión STOMP: ' + error);
-        connectionStatusEl.className = "flex items-center justify-center bg-red-500/80 text-text-light px-3 py-2 rounded-full text-sm font-medium transition-all duration-300";
+        connectionStatusEl.className = "flex items-center justify-center bg-red-500/80 text-text-light px-3 py-2 rounded-full text-sm font-medium";
         connectionStatusEl.innerHTML = '<div class="h-2 w-2 rounded-full bg-red-100 mr-2"></div> Desconectado';
-        setTimeout(connect, 3000); // Reintentar conexión
+
+        setTimeout(connect, 3000);
     });
 }
 
