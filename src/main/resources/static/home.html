@@ -17,16 +17,14 @@
                 flex flex-col lg:flex-row bg-white border border-primary-dark">
 
     <!-- Panel Radar -->
-    <div id="radarPanel" class="lg:w-4/5 h-full rounded-lg p-4 md:p-8 flex flex-col items-center justify-start bg-pastel-bg relative text-text-dark">
+    <div id="radarPanel" class="lg:w-4/5 h-full rounded-lg p-4 md:p-8 flex flex-col items-center justify-start bg-pastel-bg relative text-text-dark overflow-visible">
 
-        <h2 class="text-2xl font-extrabold text-primary-dark mb-4 uppercase tracking-wider border-b-2 border-primary-dark/50 pb-2 w-full text-center">
+        <h2 class="text-2xl font-extrabold text-primary-dark mb-4 uppercase tracking-wider border-b-2 border-primary-dark/50 pb-2 w-full text-center relative z-10">
             Radar UltraScan 8266
         </h2>
 
-        <div id="canvasContainer" class="w-full flex-grow flex items-end justify-center relative overflow-hidden rounded-b-xl">
+        <div id="canvasContainer" class="w-full flex-grow flex items-end justify-center relative overflow-visible rounded-b-xl">
             <canvas id="radarCanvas" class="relative"></canvas>
-
-            <div id="sweepIndicator" class="radar-sweep-indicator hidden"></div>
 
             <div id="targetContainer"></div>
         </div>
