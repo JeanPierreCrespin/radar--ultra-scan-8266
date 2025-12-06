@@ -1,13 +1,13 @@
-
 :root {
-    --color-primary: #2e3192;
+    --color-primary: #4EE8FF;
     --color-pastel-bg: #f5f4ff;
-    --color-radar-fill: #f8fbfd4f;
-    --color-grid-line: #2e3192;
+    --color-radar-fill: #050A12;
+    --color-grid-line: #4EE8FF;
     --color-target: #2e3192;
     --color-text-dark: #1e293b;
     --color-text-light: #f3f4f6;
 }
+
 body {
     font-family: 'Inter', sans-serif;
 }

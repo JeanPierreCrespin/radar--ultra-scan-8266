@@ -93,11 +93,11 @@ function drawSweep() {
 
     // Gradiente radial para el efecto de barrido (máxima intensidad en origen → transparencia en punta)
     const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radarSize);
-    grad.addColorStop(0, "rgba(0,255,0,0.5)"); // Máxima intensidad en el origen
-    grad.addColorStop(0.2, "rgba(0,255,0,0.35)");
-    grad.addColorStop(0.4, "rgba(0,255,0,0.2)");
-    grad.addColorStop(0.6, "rgba(0,255,0,0.1)");
-    grad.addColorStop(0.8, "rgba(0,255,0,0.05)");
+    grad.addColorStop(0, "rgba(0,166,255,0.5)"); // Máxima intensidad en el origen
+    grad.addColorStop(0.2, "rgba(0,225,255,0.35)");
+    grad.addColorStop(0.4, "rgba(0,217,255,0.2)");
+    grad.addColorStop(0.6, "rgba(0,196,255,0.1)");
+    grad.addColorStop(0.8, "rgba(0,225,255,0.05)");
     grad.addColorStop(1, "rgba(0,255,0,0)"); // Transparencia total en la punta
     ctx.fillStyle = grad;
 
