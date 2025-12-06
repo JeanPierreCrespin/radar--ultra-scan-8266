@@ -2,9 +2,21 @@ const CANVAS_ID = 'radarCanvas';
 const CONTAINER_ID = 'canvasContainer';
 const TARGET_CONTAINER_ID = 'targetContainer';
 
-const PRIMARY_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim();
-const RADAR_FILL_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--color-radar-fill').trim();
-const GRID_LINE_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--color-grid-line').trim();
+// ============================================
+// PALETA DE COLORES RADAR PROFESIONAL
+// ============================================
+const PRIMARY_COLOR = '#2EC4D6'; // Líneas principales (arcos)
+const RADAR_FILL_COLOR = '#060B10'; // Fondo principal del radar
+const GRID_LINE_COLOR = 'rgba(26, 127, 142, 0.6)'; // Líneas secundarias y grilla (50-70% opacidad)
+const DASHED_LINE_COLOR = 'rgba(19, 76, 87, 0.35)'; // Líneas punteadas (30-40% opacidad)
+const SWEEP_MAIN_COLOR = '#3FFFD2'; // Barra de barrido - color principal
+const SWEEP_GLOW_COLOR = '#1BD8C4'; // Barra de barrido - glow/borde
+const ECHO_STRONG_COLOR = '#9AFF00'; // Eco fuerte
+const ECHO_MEDIUM_COLOR = '#6AFF3D'; // Eco medio
+const ECHO_WEAK_COLOR = 'rgba(154, 255, 0, 0.3)'; // Eco débil
+const TEXT_PRIMARY_COLOR = '#CDEFF5'; // Texto principal
+const TEXT_SECONDARY_COLOR = '#6FB6C1'; // Texto secundario / grados
+const TEXT_TERTIARY_COLOR = '#4A7F88'; // Labels de menor relevancia
 
 const MAX_DISTANCE = 100;
 const NUM_RANGE_CIRCLES = 4;
@@ -91,15 +103,22 @@ function drawSweep() {
     ctx.closePath();
     ctx.clip();
 
-    // Gradiente radial para el efecto de barrido (máxima intensidad en origen → transparencia en punta)
+    // Gradiente radial para el efecto de barrido profesional
+    // Color principal: #3FFFD2, Glow: #1BD8C4
+    // Desde rgba(63,255,210,0.35) en el centro hasta rgba(63,255,210,0) en el borde
     const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radarSize);
-    grad.addColorStop(0, "rgba(0,166,255,0.5)"); // Máxima intensidad en el origen
-    grad.addColorStop(0.2, "rgba(0,225,255,0.35)");
-    grad.addColorStop(0.4, "rgba(0,217,255,0.2)");
-    grad.addColorStop(0.6, "rgba(0,196,255,0.1)");
-    grad.addColorStop(0.8, "rgba(0,225,255,0.05)");
-    grad.addColorStop(1, "rgba(0,255,0,0)"); // Transparencia total en la punta
+    grad.addColorStop(0, "rgba(63, 255, 210, 0.35)"); // Máxima intensidad en el origen
+    grad.addColorStop(0.15, "rgba(63, 255, 210, 0.28)");
+    grad.addColorStop(0.3, "rgba(63, 255, 210, 0.2)");
+    grad.addColorStop(0.5, "rgba(63, 255, 210, 0.12)");
+    grad.addColorStop(0.7, "rgba(63, 255, 210, 0.06)");
+    grad.addColorStop(0.85, "rgba(63, 255, 210, 0.03)");
+    grad.addColorStop(1, "rgba(63, 255, 210, 0)"); // Transparencia total en la punta
     ctx.fillStyle = grad;
+    
+    // Agregar glow/borde con el color secundario
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = SWEEP_GLOW_COLOR;
 
     // Dibujar el sweep como un arco dentro del semicírculo visible
     const sweepWidth = 0.08; // Ancho del barrido en radianes (un poco más ancho para mejor visibilidad)
@@ -108,6 +127,10 @@ function drawSweep() {
     ctx.arc(0, 0, radarSize, canvasAngle - sweepWidth, canvasAngle + sweepWidth);
     ctx.closePath();
     ctx.fill();
+    
+    // Restaurar shadow
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
 
     ctx.restore();
 
@@ -240,10 +263,10 @@ function drawRadarGrid() {
     ctx.fillStyle = RADAR_FILL_COLOR;
     ctx.fill();
 
-    // Círculos de rango (estilo técnico minimalista)
-    ctx.strokeStyle = PRIMARY_COLOR;
+    // Círculos de rango (líneas principales - arcos)
+    ctx.strokeStyle = PRIMARY_COLOR; // #2EC4D6
     ctx.lineWidth = 1.5;
-    ctx.globalAlpha = 0.6;
+    ctx.globalAlpha = 1; // Líneas principales sin opacidad
 
     for (let i = 1; i <= NUM_RANGE_CIRCLES; i++) {
         const radius = (radarSize / NUM_RANGE_CIRCLES) * i;
@@ -254,11 +277,11 @@ function drawRadarGrid() {
 
     ctx.globalAlpha = 1;
 
-    // Líneas guía cada 20° (estilo técnico minimalista)
-    ctx.setLineDash([2, 2]); // Líneas punteadas sutiles
-    ctx.strokeStyle = GRID_LINE_COLOR;
-    ctx.lineWidth = 0.5;
-    ctx.globalAlpha = 0.4;
+    // Líneas guía cada 20° (diagonales más visibles)
+    ctx.setLineDash([3, 3]); // Líneas punteadas más visibles
+    ctx.strokeStyle = GRID_LINE_COLOR; // #1A7F8E con 60% opacidad - más visible
+    ctx.lineWidth = 0.8; // Aumentar grosor para mayor visibilidad
+    ctx.globalAlpha = 1; // La opacidad ya está en el color
 
     const guideAngles = [];
     for (let i = 0; i <= 180; i += 20) {
@@ -273,12 +296,63 @@ function drawRadarGrid() {
         ctx.stroke();
     });
 
+    // ============================================
+    // ETIQUETAS DE DISTANCIA EN CM EN LAS INTERSECCIONES
+    // ============================================
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = TEXT_TERTIARY_COLOR; // #4A7F88 - Labels de menor relevancia
+    ctx.font = '9px Inter';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // Dibujar etiquetas de distancia en las intersecciones de líneas guía con círculos de rango
+    guideAngles.forEach(angle => {
+        const radian = angle * (Math.PI / 180);
+        
+        // Para cada círculo de rango, agregar etiqueta de distancia
+        for (let i = 1; i <= NUM_RANGE_CIRCLES; i++) {
+            const radius = (radarSize / NUM_RANGE_CIRCLES) * i;
+            const distanceCm = (radius / radarSize) * MAX_DISTANCE;
+            
+            // Calcular posición de la intersección
+            const intersectionX = radius * Math.cos(radian);
+            const intersectionY = -radius * Math.sin(radian);
+            
+            // Distribuir etiquetas de forma inteligente:
+            // - En ángulos 20°, 60°, 100°, 140°: mostrar en círculos 1, 3
+            // - En ángulos 40°, 80°, 120°, 160°: mostrar en círculos 2, 4
+            // - Evitar 0° y 180° para no superponer con etiquetas de ángulo
+            let shouldShow = false;
+            if (angle !== 0 && angle !== 180) {
+                if ((angle === 20 || angle === 60 || angle === 100 || angle === 140) && (i === 1 || i === 3)) {
+                    shouldShow = true;
+                } else if ((angle === 40 || angle === 80 || angle === 120 || angle === 160) && (i === 2 || i === 4)) {
+                    shouldShow = true;
+                }
+            }
+            
+            if (shouldShow) {
+                // Offset perpendicular a la línea para que la etiqueta no esté exactamente en la línea
+                const labelOffset = 10;
+                const perpAngle = radian + Math.PI / 2; // Ángulo perpendicular
+                const labelX = intersectionX + labelOffset * Math.cos(perpAngle);
+                const labelY = intersectionY - labelOffset * Math.sin(perpAngle);
+                
+                // Verificar que la etiqueta esté dentro del semicírculo visible
+                if (labelY < 0) { // Solo arriba de la línea base
+                    ctx.fillText(`${Math.round(distanceCm)}cm`, labelX, labelY);
+                }
+            }
+        }
+    });
+
     // Etiquetas de ángulos cada 20°
     ctx.setLineDash([]);
     ctx.globalAlpha = 1;
     ctx.strokeStyle = PRIMARY_COLOR;
     ctx.lineWidth = 1;
-    ctx.fillStyle = PRIMARY_COLOR;
+    ctx.fillStyle = TEXT_SECONDARY_COLOR; // #6FB6C1 - Texto secundario / grados
     ctx.font = 'bold 13px Inter';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -491,14 +565,25 @@ function drawRevealedPoints() {
         const baseOpacity = 1 - fadeProgress; // De 1.0 a 0.0
         const pingIntensity = age < 200 ? 1.5 : 1.0; // Efecto "ping" inicial (primeros 200ms)
         
-        // Color según cercanía (con desvanecimiento)
+        // Color según cercanía usando paleta de ecos profesional
+        // Eco fuerte: #9AFF00, Eco medio: #6AFF3D, Eco débil: rgba(154,255,0,0.3)
         let color;
+        let shadowColor;
         if (normalizedDistance < 20) {
-            color = `rgba(180,255,180,${baseOpacity * pingIntensity})`;
+            // Eco fuerte - muy cerca
+            const r = 154, g = 255, b = 0; // #9AFF00
+            color = `rgba(${r}, ${g}, ${b}, ${baseOpacity * pingIntensity})`;
+            shadowColor = `rgba(${r}, ${g}, ${b}, ${baseOpacity * 0.8})`;
         } else if (normalizedDistance < 50) {
-            color = `rgba(0,255,0,${baseOpacity * pingIntensity})`;
+            // Eco medio
+            const r = 106, g = 255, b = 61; // #6AFF3D
+            color = `rgba(${r}, ${g}, ${b}, ${baseOpacity * pingIntensity})`;
+            shadowColor = `rgba(${r}, ${g}, ${b}, ${baseOpacity * 0.7})`;
         } else {
-            color = `rgba(0,255,0,${baseOpacity * 0.9 * pingIntensity})`;
+            // Eco débil - lejos
+            const r = 154, g = 255, b = 0; // #9AFF00 base pero con opacidad reducida
+            color = `rgba(${r}, ${g}, ${b}, ${baseOpacity * 0.3 * pingIntensity})`;
+            shadowColor = `rgba(${r}, ${g}, ${b}, ${baseOpacity * 0.2})`;
         }
         
         dot.style.backgroundColor = color;
@@ -509,9 +594,10 @@ function drawRevealedPoints() {
         dot.style.transform = "translate(-50%, -50%)";
         dot.style.zIndex = "10";
         
-        // Efecto "ping" inicial: sombra más intensa
-        const shadowIntensity = age < 200 ? 1.2 : 0.8;
-        dot.style.boxShadow = `0 0 ${4 * shadowIntensity}px rgba(0,255,0,${baseOpacity * shadowIntensity})`;
+        // Efecto "ping" inicial: sombra más intensa con glow profesional
+        const shadowIntensity = age < 200 ? 1.5 : 1.0;
+        const shadowBlur = age < 200 ? 8 : 5;
+        dot.style.boxShadow = `0 0 ${shadowBlur * shadowIntensity}px ${shadowColor}`;
         
         dot.style.left = `${containerX}px`;
         dot.style.top = `${containerY}px`;
@@ -577,6 +663,11 @@ function animate() {
 
 function connect() {
     connectionStatusEl.textContent = "Conectando...";
+    // Estado conectando: color alerta
+    connectionStatusEl.style.backgroundColor = '#F87171';
+    connectionStatusEl.style.color = '#060B10';
+    const statusDot = connectionStatusEl.querySelector('div');
+    if (statusDot) statusDot.style.backgroundColor = '#F87171';
 
     const socket = new SockJS('/ws-radar');
     stompClient = Stomp.over(socket);
@@ -585,6 +676,10 @@ function connect() {
     stompClient.connect({}, function(frame) {
 
         connectionStatusEl.textContent = "Conectado";
+        // Estado conectado: color activo
+        connectionStatusEl.style.backgroundColor = '#4ADE80';
+        connectionStatusEl.style.color = '#060B10';
+        if (statusDot) statusDot.style.backgroundColor = '#4ADE80';
 
         stompClient.subscribe('/topic/radar', function(message) {
             try {
@@ -657,6 +752,11 @@ function connect() {
 
     }, function(error) {
         connectionStatusEl.textContent = "Desconectado";
+        // Estado desconectado: color alerta
+        connectionStatusEl.style.backgroundColor = '#F87171';
+        connectionStatusEl.style.color = '#060B10';
+        const statusDot = connectionStatusEl.querySelector('div');
+        if (statusDot) statusDot.style.backgroundColor = '#F87171';
         setTimeout(connect, 3000);
     });
 }

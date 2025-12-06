@@ -1,16 +1,14 @@
 package com.radar.scan.services;
 
-import com.radar.scan.entities.RadarData;
-import com.radar.scan.repositories.RadarDataRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.radar.scan.entities.RadarData;import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
 public class RadarDataService {
 
-    @Autowired
-    private RadarDataRepository radarDataRepository;
+//    @Autowired
+//    private RadarDataRepository radarDataRepository;
 
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
@@ -28,11 +26,11 @@ public class RadarDataService {
         }
 
         // Guardar en base de datos
-        RadarData savedData = radarDataRepository.save(radarData);
+//        RadarData savedData = radarDataRepository.save(radarData);
         
         // Enviar por WebSocket a todos los clientes conectados
-        messagingTemplate.convertAndSend("/topic/radar", savedData);
+        messagingTemplate.convertAndSend("/topic/radar", radarData);
         
-        return savedData;
+        return radarData;
     }
 }
